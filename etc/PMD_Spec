@@ -1,0 +1,410 @@
+<http://blog.goo.ne.jp/torisu_tetosuki/e/209ad341d3ece2b1b4df24abf619d6e4>
+
+PMD形式めも(MMD3.0.x～)
+
+
+補足：
+各データは、解析結果です。
+
+補足2：
+unsignedが付くか付かないかは未検証です。
+(書き直していませんが、ボーンのインデックスはsignedです)
+
+・ヘッダ
+char magic[3]; // "Pmd"
+float version; // 00 00 80 3F == 1.00 // 訂正しました。コメントありがとうございます
+char model_name[20];
+char comment[256];
+
+"Pmd" 1.00 "Test Model" "Comments"
+
+・文字列: 終端 0x00、 パディング 0xFD
+　文字コード：シフトJIS
+※終端の0x00は省略不可(例外あり)
+
+MMDのモデルデータについて語るスレを参考にしています(一部加筆、修正)
+http://jbbs.livedoor.jp/bbs/read.cgi/music/23040/1219738115/
+
+PMDエディタのreadmeも参考になります^^
+
+
+
+・頂点リスト
+DWORD vert_count; // 頂点数
+t_vertex vertex[vert_count]; // 頂点データ(38Bytes/頂点)
+
+・t_vertex
+float pos[3]; // x, y, z // 座標
+float normal_vec[3]; // nx, ny, nz // 法線ベクトル
+float uv[2]; // u, v // UV座標 // MMDは頂点UV
+WORD bone_num[2]; // ボーン番号1、番号2 // モデル変形(頂点移動)時に影響
+BYTE bone_weight; // ボーン1に与える影響度 // min:0 max:100 // ボーン2への影響度は、(100 - bone_weight)
+BYTE edge_flag; // 0:通常、1:エッジ無効 // エッジ(輪郭)が有効の場合
+
+WORDとBYTE[2]は気づきにくいのです
+
+補足：
+面頂点リストの頂点番号がWORDなので、頂点数も最大65535あたりかと。(それ以上は面が張れないので)
+
+
+・面頂点リスト
+DWORD face_vert_count; // 頂点数 // 面数ではありません
+WORD face_vert_index[face_vert_count]; // 頂点番号(3個/面)
+
+// 例：
+// 00:位置(-1, 0, 0), 01:(0, 2, 0), 02:(1, 0, 0)の3頂点で構成される3角形を手前(z+)向きに表示する場合 // 材質の透過率が1の場合
+//
+// 0x0000 0003 // face_vert_count
+// 0x0000 0x0001 0x0002 // face_vert_idx[]
+
+
+MMD 8.03(64bit版)での実験結果：
+実験1：
+頂点の位置が00:(-1, 0, 0), 01:(0, 2, 0), 02:(1, 0, 0)、
+法線ベクトルが00:(0, 0, 1), 01:(0, 0, 1), 02:(0, 0, 1) の場合
+
+頂点番号を00 01 02とすると手前向きになります。
+
+
+実験2：
+頂点の位置が00:(-1, 0, 0), 01:(0, 2, 0), 02:(1, 0, 0)、
+法線ベクトルが00:(0, 0, -1), 01:(0, 0, -1), 02:(0, 0, -1) の場合
+
+頂点番号を00 01 02とすると手前向きになります。
+
+
+実験3：
+頂点の位置が00:(-1, 0, 0), 01:(0, 2, 0), 02:(1, 0, 0)、
+法線ベクトルが00:(0, 0, 0), 01:(0, 0, 0), 02:(0, 0, 0) の場合(設定しわすれた場合)
+
+頂点番号を00 01 02とすると手前向きになります。
+
+
+PMD形式めも
+・材質リスト
+DWORD material_count; // 材質数
+t_material material[material_count]; // 材質データ(70Bytes/material)
+
+・t_material
+float diffuse_color[3]; // dr, dg, db // 減衰色
+float alpha; // 減衰色の不透明度
+float specularity;
+float specular_color[3]; // sr, sg, sb // 光沢色
+float mirror_color[3]; // mr, mg, mb // 環境色(ambient)
+BYTE toon_index; // toon??.bmp // 0.bmp:0xFF, 1(01).bmp:0x00 ・・・ 10.bmp:0x09
+BYTE edge_flag; // 輪郭、影
+DWORD face_vert_count; // 面頂点数 // 面数ではありません。この材質で使う、面頂点リストのデータ数です。
+char texture_file_name[20]; // テクスチャファイル名またはスフィアファイル名 // 20バイトぎりぎりまで使える(終端の0x00は無くても動く)
+
+
+テクスチャファイル名またはスフィアファイル名の補足：
+
+テクスチャファイルにスフィアファイルを乗算または加算する場合
+(MMD 5.12以降)
+"テクスチャ名.bmp*スフィア名.sph" で乗算
+"テクスチャ名.bmp*スフィア名.spa" で加算
+
+(MMD 5.11)
+"テクスチャ名.bmp/スフィア名.sph" で乗算
+
+(MMD 5.09あたり-)
+"テクスチャ名.bmp" または "スフィア名.sph"
+
+
+
+
+不透明度の補足：
+(MMD 6.10以降)
+0.98に設定した場合、その材質のセルフシャドウは無効になります。
+(他の材質・モデルの影の影響は受けます)
+セルフシャドウ無効化の設定値が0.99でないのは、0.99が擬似両面化(不透明度1だと片面しか見えないので)によく使われるためと思われます。
+
+セルフシャドウとToon色の関係：
+(MMD 6.10以降)
+モデルの場合は、Toonの左下1ドットの色
+アクセサリの場合は、emissiveColor(MMDの地面影色設定で調整可能)が
+セルフシャドウの色として利用されます。
+
+アクセサリのemissiveColor(自己発光色)：MMDで照明のr,g,bを全て0にした時の色です。
+
+参照：
+【MMD】セルフシャドウ説明　(樋口Mによるセルフシャドウの説明です)
+
+めも：
+セルフシャドウのモード1：近距離から遠距離まで均等に綺麗な影
+セルフシャドウのモード2：近距離ほど綺麗な影
+
+モード1で、画面内の最も遠距離まで影が映るように距離を調整→
+　近距離側の影が表示されなくなった場合→　モード2を使用します。
+
+モード2でも、照明の向きとカメラの方向が同じ方向を向いてしまうと、
+モード1相当の動作になってしまいます。
+
+
+
+・ボーンリスト
+WORD bone_count; // ボーン数
+t_bone bone[bone_count]; // ボーンデータ(39Bytes/bone)
+
+・t_bone
+char bone_name[20]; // ボーン名
+WORD parent_bone_index; // 親ボーン番号(ない場合は0xFFFF)
+WORD tail_pos_bone_index; // tail位置のボーン番号(チェーン末端の場合は0xFFFF 0 →補足2) // 親：子は1：多なので、主に位置決め用
+BYTE bone_type; // ボーンの種類
+WORD ik_parent_bone_index; // IKボーン番号(影響IKボーン。ない場合は0)
+float bone_head_pos[3]; // x, y, z // ボーンのヘッドの位置
+
+・ボーンの種類
+0:回転 1:回転と移動 2:IK 3:不明 4:IK影響下 5:回転影響下 6:IK接続先 7:非表示
+
+・ボーンの種類 (MMD 4.0～)
+8:捻り 9:回転運動
+
+補足：
+1モデルあたりのボーン数の実質的な限界が変わったようです。(MMD6.x～)
+実験結果：
+MMD6.02、6.08
+約500本x1(テストに使ったデータは513本)→落ちない
+約2000本x1(テストに使ったデータは2599本)→落ちる
+約500本x10→落ちない
+MMD5.22
+約500本x1→落ちない
+約2000本x1→落ちない
+
+補足2：
+MMD 7.39dot前後のアップデートに伴い、
+チェーン末端のtail位置のボーン番号(子ボーン番号)は0になりました。
+(旧バージョンでも使用可)
+
+非表示ボーン(「～～先」など)のtail位置のボーン番号を0xFFFFとした場合、
+tail位置が画面左上端付近のボーンとして表示されます。
+実験結果：
+MMD 7.30までは、問題ないようです。(通常の非表示ボーンと同様、ボーンは表示されません。)
+MMD 7.37～7.39では、MMD本体が落ちるようです。
+MMD 7.39dot（～8.03）では、
+・数回に一度、MMD本体が落ちます。
+・MMD本体が落ちなかった場合は、左上に伸びるボーンとして表示されます。
+　稀に、エンジン状態(数方向の繰り返し)となる場合もあります。
+　(通常の非表示ボーンと同様、ボーンは表示されない場合もあります。)
+・読込後しばらく経ってからMMD本体が落ちる事があります。
+・2回目のモデル読込時に落ちる事が多いようです。
+・画面左下の操作部(local, X, Y, Z等表示されているエリア)付近を通過してpmdファイルをドラッグした場合に落ちる事が多いようです。
+・32bit版、64bit版ともに、MMD本体が落ちる場合があります。
+（あくまで実験結果なので、落ちるのは0xFFFF以外の原因かもしれません。）
+
+
+
+・IKリスト
+WORD ik_data_count; // IKデータ数
+t_ik_data ik_data[ik_data_count]; // IKデータ((11+2*ik_chain_length)/IK)
+
+・t_ik_data
+WORD ik_bone_index; // IKボーン番号
+WORD ik_target_bone_index; // IKターゲットボーン番号 // IKボーンが最初に接続するボーン
+BYTE ik_chain_length; // IKチェーンの長さ(子の数)
+WORD iterations; // 再帰演算回数 // IK値1
+float control_weight; // 演算1回あたりの制限角度 // IK値2
+WORD ik_child_bone_index[ik_chain_length]; // IK影響下のボーン番号
+
+
+
+・表情リスト
+WORD skin_count; // 表情数
+t_skin_data skin_data[skin_count]; // 表情データ((25+16*skin_vert_count)/skin)
+
+・t_skin_data
+char skin_name[20]; //　表情名
+DWORD skin_vert_count; // 表情用の頂点数
+BYTE skin_type; // 表情の種類 // 0：base、1：まゆ、2：目、3：リップ、4：その他
+t_skin_vert_data skin_vert_data[skin_vert_count]; // 表情用の頂点のデータ(16Bytes/vert)
+
+・t_skin_vert_data(type：base)
+DWORD skin_vert_index; // 表情用の頂点の番号(頂点リストにある番号)
+float skin_vert_pos[3]; // x, y, z // 表情用の頂点の座標(頂点自体の座標)
+
+・t_skin_vert_data(type：base以外)
+DWORD base_skin_vert_index; // 表情用の頂点の番号(baseの番号。skin_vert_index)
+float skin_vert_pos_offset[3]; // x, y, z // 表情用の頂点の座標オフセット値(baseに対するオフセット)
+
+
+
+・表情枠用表示リスト
+BYTE skin_disp_count; // 表情枠に表示する表情数
+WORD skin_index[skin_disp_count]; // 表情番号
+
+
+
+・ボーン枠用枠名リスト
+BYTE bone_disp_name_count; // ボーン枠用の枠名数 // センター(1番上に表示される枠)は含まない
+char disp_name[50][bone_disp_name_count]; // 枠名(50Bytes/枠)
+
+補足：
+PMDeditorを使う場合は、枠名を0x0A00で終わらせる必要があります。(0x00のみだと表示されません)→0.0.4.2cで確認。
+MMDでは文字列終端は0x00のみでも表示可能です。→6.08で確認。(付属モデルは0x0A00で終端しているようです)
+
+
+
+・ボーン枠用表示リスト
+DWORD bone_disp_count; // ボーン枠に表示するボーン数 (枠0(センター)を除く、すべてのボーン枠の合計)
+t_bone_disp bone_disp[bone_disp_count]; // 枠用ボーンデータ (3Bytes/bone)
+
+・t_bone_disp
+WORD bone_index; // 枠用ボーン番号
+BYTE bone_disp_frame_index; // 表示枠番号 // センター:00 他の表示枠:01～ // センター枠にセンター(index 0)以外のボーンを指定しても表示されません。
+
+
+※bone_disp_countの部分は、
+BYTE bone_disp_count + 0x0000(ボーン0) + 0x00(枠0)
+のように見えますが、DWORDです。
+・BYTEにすると総数が合わない(0x000000をデータとしてカウントすると1足りない)
+・ボーン番号がWORDなので、WORD以上のサイズが必要
+・データの区切りの位置から判断すると、WORDにはならない
+
+補足：
+1つのボーン枠に表示できるボーン数は254個です。
+1つのボーン枠に登録したボーン数と表示される内容は、こんな感じ。
+254：254本表示される
+255、256：枠内の表示が消える
+257：枠内の最初のボーン1本だけ表示
+258～：256を引いた数ずつ表示される
+
+
+実験結果：
+(MMD 8.03(64bit)で実験)
+枠用ボーンデータに、
+01 00 00 (ボーン1をセンター枠に表示)
+→センター枠にボーン1は表示されません。
+
+枠用ボーンデータに、
+00 00 01 (ボーン0(=センター)を枠1に表示)
+→枠1にセンターボーンが表示されます。
+
+
+
+PMD形式めも(拡張１：英名対応)
+アドレスは、初音ミク v1.3 物理演算モデルのデータです。
+データ使用時は、モデルデータの使用条件等に注意して下さい
+
+１１．ヘッダ(英語)
+0x0007 1167～
+BYTE english_name_compatibility; // 英名対応(01:英名対応あり)
+char model_name_eg[20]; // モデル名(英語)
+char comment_eg[256]; // コメント(英語)
+
+
+
+１２．ボーンリスト(英語)
+0x0007 127C～ // bone_count == 122 (total 2440Bytes)
+char bone_name_eg[20][bone_count]; // ボーン名(英語)
+
+
+
+１３．表情リスト(英語)
+0x0007 1C04～ // skin_count == 16 // baseは英名が登録されないので15個 (total 300Bytes)
+char skin_name_eg[20][skin_count - 1]; // 表情名(英語)
+
+
+
+１４．ボーン枠用枠名リスト(英語)
+0x0007 1D30～ // bone_disp_name_count == 7 // センターは英名が登録されないので7個 (total 350Bytes)
+char disp_name_eg[50][bone_disp_name_count]; // 枠名(英語) // MMDでは「区分名」
+
+
+
+１５．トゥーンテクスチャリスト
+0x0007 1E8E～ // 個数は10個固定 (total 1000Bytes)
+char toon_file_name[100][10]; // トゥーンテクスチャファイル名
+
+
+
+PMD形式めも(拡張３：物理演算)
+MMD test5b以降の、物理演算モデル対応部分です。
+アドレス等は、初音ミク v1.3 物理演算モデルのデータです。
+データ使用時は、モデルデータの使用条件等に注意して下さい
+
+１６．物理演算_剛体リスト
+0x0007 2276～
+DWORD rigidbody_count; // 剛体数 // 2D 00 00 00 == 45
+t_rigidbody[rigidbody_count]; // 剛体データ(83Bytes/rigidbody)
+
+・t_rigidbody
+char rigidbody_name[20]; // 諸データ：名称 // 頭
+WORD rigidbody_rel_bone_index; // 諸データ：関連ボーン番号 // 03 00 == 3 // 頭
+BYTE rigidbody_group_index; // 諸データ：グループ // 00
+WORD rigidbody_group_target; // 諸データ：グループ：対象 // 0xFFFFとの差 // 38 FE
+BYTE shape_type; // 形状：タイプ(0:球、1:箱、2:カプセル) // 00 // 球
+float shape_w; // 形状：半径(幅) // CD CC CC 3F // 1.6
+float shape_h; // 形状：高さ // CD CC CC 3D // 0.1
+float shape_d; // 形状：奥行 // CD CC CC 3D // 0.1
+float pos_pos[3]; // 位置：位置(x, y, z)
+float pos_rot[3]; // 位置：回転(rad(x), rad(y), rad(z))
+float rigidbody_weight; // 諸データ：質量 // 00 00 80 3F // 1.0
+float rigidbody_pos_dim; // 諸データ：移動減 // 00 00 00 00
+float rigidbody_rot_dim; // 諸データ：回転減 // 00 00 00 00
+float rigidbody_recoil; // 諸データ：反発力 // 00 00 00 00
+float rigidbody_friction; // 諸データ：摩擦力 // 00 00 00 00
+BYTE rigidbody_type; // 諸データ：タイプ(0:Bone追従、1:物理演算、2:物理演算(Bone位置合せ)) // 00 // Bone追従
+
+補足１：
+pos_rot[3]; // 位置：回転
+記録される値は、設定ボックスの値(度)をラジアンに変換した値(若干の誤差あり)
+※１ 記録される値 = 設定ボックスの値 * PI / 180
+※２ PI == 3.1415920
+※３ 有効桁数は8桁
+※４ 設定ボックスに表示されていない桁も計算対象とするようです。(値をペーストした場合など)
+※５ 記録される値は2*PI(360度)で制限されません
+
+補足２：
+rigidbody_group_target; // 諸データ：グループ：対象
+・各値を(設定値-1)左シフトした後、ビットOR
+・0xFFFFとの差を記録
+例：
+設定ボックス	記録される値
+1		FE FF (0xFFFE == 0xFFFF - (1 << 0))
+
+16		FF 7F (0x7FFF == 0xFFFF - (1 << 15))
+
+1 2		FC FF (0xFFFC == 0xFFFF - (1 << 0) - (1 << 1))
+
+
+補足３：
+0x0007 227A～ // 頭
+0x0007 22CD～ // 上半身右
+・・・
+
+補足４：
+float
+CD CC CC 3D == 0.1
+CD CC 4C 3E == 0.2
+CD CC CC 3E == 0.4
+CD CC 4C 3F == 0.8
+00 00 80 3F == 1.0
+CD CC CC 3F == 1.6
+
+
+
+１７．物理演算_ジョイントリスト
+0x0007 3111～0x0007 3E28(ファイル末尾)
+DWORD joint_count; // ジョイント数 // 1B 00 00 00 == 27
+t_joint[joint_count]; // ジョイントデータ(124Bytes/joint)
+
+・t_joint
+char joint_name[20]; // 諸データ：名称 // 右髪1
+DWORD joint_rigidbody_a; // 諸データ：剛体A
+DWORD joint_rigidbody_b; // 諸データ：剛体B
+float joint_pos[3]; // 諸データ：位置(x, y, z) // 諸データ：位置合せでも設定可
+float joint_rot[3]; // 諸データ：回転(rad(x), rad(y), rad(z))
+float constrain_pos_1[3]; // 制限：移動1(x, y, z)
+float constrain_pos_2[3]; // 制限：移動2(x, y, z)
+float constrain_rot_1[3]; // 制限：回転1(rad(x), rad(y), rad(z))
+float constrain_rot_2[3]; // 制限：回転2(rad(x), rad(y), rad(z))
+float spring_pos[3]; // ばね：移動(x, y, z)
+float spring_rot[3]; // ばね：回転(rad(x), rad(y), rad(z))
+
+補足１：
+constrain_pos_1[3]; // 制限：移動1(x, y, z)、constrain_pos_2[3]; // 制限：移動2(x, y, z)
+記録される順番に注意。
+設定ボックスの並びは、移動1x - 移動2x 移動1y - 移動2y 移動1z - 移動2z
+記録される値の並びは、移動1x 移動1y 移動1z 移動2x 移動2y 移動2z
+制限：回転も同様。
+
