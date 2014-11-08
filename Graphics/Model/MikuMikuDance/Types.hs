@@ -45,29 +45,29 @@ type BodyIx = Int32
 
 -- | PMX 2.1 spec made by Kyockhook-P (極北P)
 data MMD = MMD
-	-- | 1.0: PMD, 2.0/2.1:PMX
 	{ mmdFormat :: Float
-	-- | UTF-16, UTF-8, Shift-JIS
+	-- ^ 1.0: PMD, 2.0/2.1:PMX
 	, mmdCharCode :: String
+	-- ^ UTF-16, UTF-8, Shift-JIS
 	, mmdExtUVs :: Word8 -- ^ in [0..4]
 	, mmdNameJa :: B.ByteString
 	, mmdName :: B.ByteString
 	, mmdCommentJa :: B.ByteString
 	, mmdComment :: B.ByteString
 	, mmdVertices :: [MMDVertex]
-	-- | ABC(Triangle), /Since 2.1/: AAA(Point), ABA(Line)
 	, mmdPlanes :: [V3 VertexIx]
+	-- ^ ABC(Triangle), /Since 2.1/: AAA(Point), ABA(Line)
 	, mmdTextures :: [B.ByteString]
-	-- | length: 0(PMX) or 10(PMD, if exists)
 	, mmdAltToonTex :: [B.ByteString]
+	-- ^ length: 0(PMX) or 10(PMD, if exists)
 	, mmdMaterials :: [MMDMaterial]
 	, mmdBones :: [MMDBone]
 	, mmdMorphs :: [MMDMorph]
 	, mmdGroups :: [MMDGroup]
 	, mmdRigidBodies :: [MMDRigidBody]
 	, mmdJoints :: [MMDJoint]
-	-- | /Since 2.1/
 	, mmdSoftBodies :: [MMDSoftBody]
+	-- ^ /Since 2.1/
 	} deriving Show
 
 data MMDVertex = MMDVertex
