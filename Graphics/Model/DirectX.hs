@@ -15,6 +15,8 @@ import Control.Applicative
 import Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.ByteString as B
 import Data.Traversable
+import Data.Vector as Vector
+import Data.Vector.Storable as Storable
 import Data.Word
 import Linear
 
@@ -29,14 +31,14 @@ data XOF = XOF
 	} deriving Show
 
 data DxMesh = DxMesh
-	{ _dxVertices :: [V3 Float]
-	, _dxFaces :: [Either (V4 Word32) (V3 Word32)]
-	, _dxIndexes :: [Word32]
-	, _dxMaterials :: [DxMaterial]
-	, _dxNormals :: [V3 Float]
-	, _dxNormalIndexes :: [Either (V4 Word32) (V3 Word32)]
-	, _dxTexCoords :: [V2 Float]
-	, _dxVertexColors ::  [(Word32, V4 Float)]
+	{ _dxVertices :: Storable.Vector (V3 Float)
+	, _dxFaces :: Vector.Vector (Either (V4 Word32) (V3 Word32))
+	, _dxIndexes :: Storable.Vector Word32
+	, _dxMaterials :: Vector.Vector DxMaterial
+	, _dxNormals :: Storable.Vector (V3 Float)
+	, _dxNormalIndexes :: Vector.Vector (Either (V4 Word32) (V3 Word32))
+	, _dxTexCoords :: Storable.Vector (V2 Float)
+	, _dxVertexColors :: Vector.Vector (Word32, V4 Float)
 	} deriving Show
 
 data DxMaterial = DxMaterial
@@ -61,16 +63,16 @@ parseXOF :: B.ByteString -> XOF
 parseXOF bs =
 	case feed (parse parseXMesh bs) "" of
 		Done _ result -> result
-		result -> error $ "parseXOF: Invalid format:\n" ++ show result
+		result -> error $ "parseXOF: Invalid format:\n" Prelude.++ show result
 
 -- | Convert to right handed system.
 reverseHand :: XOF -> XOF
 reverseHand xof@XOF{_xofMesh=DxMesh{..}, ..} =
 	xof { _xofMesh = (_xofMesh xof) {
-		_dxVertices = fmap rhVtx _dxVertices,
-		_dxFaces = fmap rhFace _dxFaces,
-		_dxNormals = fmap rhVtx _dxNormals,
-		_dxNormalIndexes = fmap rhFace _dxNormalIndexes
+		_dxVertices = Storable.map rhVtx _dxVertices,
+		_dxFaces = Vector.map rhFace _dxFaces,
+		_dxNormals = Storable.map rhVtx _dxNormals,
+		_dxNormalIndexes = Vector.map rhFace _dxNormalIndexes
 	}}
 	where rhVtx (V3 x y z) = V3 x y (-z)
 	      rhFace (Right (V3 a b c)) = Right $ V3 b a c
@@ -115,8 +117,11 @@ getStringField = braces '"' '"' (A.takeWhile (/= '"')) <* semicolon
 getVectorField :: (Applicative a, Traversable a) => Parser (a Float)
 getVectorField = getVector <* semicolon
 
-getArray :: Parser a -> Int -> Parser [a]
-getArray parser len = count len (parser <* maybeComma) <* semicolon
+getArray :: Parser a -> Int -> Parser (Vector.Vector a)
+getArray parser len = Vector.replicateM len (parser <* maybeComma) <* semicolon
+
+getArray' :: Storable a => Parser a -> Int -> Parser (Storable.Vector a)
+getArray' parser len = Storable.replicateM len (parser <* maybeComma) <* semicolon
 
 section name p = do
 	string name
@@ -132,13 +137,15 @@ headerDecl = section "Header" $ do
 
 meshDecl :: Parser DxMesh
 meshDecl = section "Mesh" $ do
-	vertices <- getIntField >>= getArray getVector
+	vertices <- getIntField >>= getArray' getVector
 	faces <- getIntField >>= getArray meshFace
-	(indexes, materials) <- option ([], []) meshMaterialList <* skipSpace
-	(normals, faceNormals) <- option ([], []) meshNormals <* skipSpace
+	(indexes, materials) <- option (Storable.empty, Vector.empty)
+			meshMaterialList <* skipSpace
+	(normals, faceNormals) <- option (Storable.empty, Vector.empty)
+			meshNormals <* skipSpace
 	DxMesh vertices faces indexes materials normals faceNormals
-		<$> option [] meshTextureCoords <* skipSpace
-		<*> option [] meshVertexColors <* skipSpace
+		<$> option Storable.empty meshTextureCoords <* skipSpace
+		<*> option Vector.empty meshVertexColors <* skipSpace
 
 meshFace = fmap Left meshFace4 <|> fmap Right meshFace3
 meshFace4 = do
@@ -152,9 +159,9 @@ meshFace3 = do
 
 meshMaterialList = section "MeshMaterialList" $ do
 	nMaterials <- getIntField
-	indexes <- getIntField >>= getArray faceIndex
+	indexes <- getIntField >>= getArray' faceIndex
 	semicolon
-	materials <- count nMaterials (materialDecl <* skipSpace)
+	materials <- Vector.replicateM nMaterials (materialDecl <* skipSpace)
 	return (indexes, materials)
 
 faceIndex :: Parser Word32
@@ -172,12 +179,12 @@ materialDecl = section "Material" $ do
 textureFilename = section "TextureFilename" getStringField
 
 meshNormals = section "MeshNormals" $ do
-	normals <- getIntField >>= getArray getVector
+	normals <- getIntField >>= getArray' getVector
 	faceNormals <- getIntField >>= getArray meshFace
 	return (normals, faceNormals)
 
 meshTextureCoords = section "MeshTextureCoords" $
-	getIntField >>= getArray getVector
+	getIntField >>= getArray' getVector
 
 meshVertexColors = section "MeshVertexColors" $
 	getIntField >>= getArray indexedColor
