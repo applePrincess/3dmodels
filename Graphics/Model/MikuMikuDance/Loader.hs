@@ -9,7 +9,7 @@ import qualified Data.ByteString as B
 import Graphics.Model.MikuMikuDance.Types
 import Linear
 import Unsafe.Coerce
-
+import System.IO.Unsafe
 
 getFloat :: Unpacking Float -- Performance hack (may not work on your devices!)
 getFloat = unsafeCoerce <$> getWord32LE
@@ -411,11 +411,12 @@ unpackPMD = do
 			bones' <- forM bones $ \bone -> do
 					nameEn <- getFixedStr 20
 					return bone { bName = nameEn }
-			faces' <- forM faces $ \morph -> do
+			faces' <- forM (tail faces) $ \morph -> do
 					nameEn <- getFixedStr 20
 					return morph { mphName = nameEn }
-			bGsEn' <- replicateM (boneGroupsLen - 1) (getFixedStr 50)
-			return (name', comment', bones', faces', bGsEn')
+			let faces'' = (head faces) { mphName = "base" } : faces'
+			bGsEn' <- replicateM boneGroupsLen (getFixedStr 50)
+			return (name', comment', bones', faces'', bGsEn')
 
 	-- UTF-16
 	let root = "R\NULo\NULo\NULt\NUL"
@@ -443,6 +444,7 @@ unpackPMD = do
 			<*> getV3 <*> getPos <*> getEular
 			<*> getFloat <*> getFloat <*> getFloat
 			<*> getFloat <*> getFloat <*> getWord8
+	
 	--    Joint
 	numJoints <- getWord32Int
 	joints <- replicateM numJoints $
