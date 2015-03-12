@@ -4,6 +4,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Int
 import Data.Bits
+import Data.Pack
 import Data.Packer
 import qualified Data.ByteString as B
 import Graphics.Model.MikuMikuDance.Types
@@ -529,4 +530,65 @@ unpackVMD = do
 
 	-- Sums up!
 	return $ VMD name boneM morphM cameraM lightM shadowM ctrlM
+
+packetVMD :: Packet VMD
+packetVMD (VMD name bone morph camera light shadow control) = do
+	magic <- bytes 30
+	when (magic /= "Vocaloid Motion Data 0002\0\0\0\0\0") $
+		-- MMD 3.0+ required.
+		fail "Not Vocaloid Motion Data"
+	
+	-- If the content is camera, light, and self shadow,
+	-- model name should be "カメラ・照明\0on Data"
+	nameM <- varchar 20 name
+
+	let p >< s = fromIntegral <$> p (fromIntegral s) 
+	numBoneKeyframes <- i32 >< V.length bone
+	boneM <- array numBoneKeyframes bone
+-- 	boneM <- replicateM numBoneKeyframes $
+-- 		BoneKeyframe <$> getFixedStr 15 <*> getWord32LE <*> getPos
+-- 			<*> getQuat <*> replicateM 64 (fromIntegral <$> getWord8)
+	
+	numMorphKeyframes <- i32 >< V.length morph
+	morphM <- array numMorphKeyframes morph
+-- 	morphM <- replicateM numMorphKeyframes $
+-- 		MorphKeyframe <$> getFixedStr 15 <*> getWord32LE <*> getFloat
+
+	numCameraKeyframes <- i32 >< V.length camera
+	cameraM <- array numCameraKeyframes camera
+-- 	numCameraKeyframes <- getWord32Int
+-- 	cameraM <- replicateM numCameraKeyframes $
+-- 		CameraKeyframe <$> getWord32LE <*> getFloat
+-- 			<*> getPos <*> getEular
+-- 			<*> replicateM 24 (fromIntegral <$> getWord8)
+-- 			<*> getWord32LE <*> ((== 0) <$> getWord8)
+
+	numLightKeyframes <- i32 >< V.length light
+	lightM <- array numLightKeyframes light
+-- 	numLightKeyframes <- getWord32Int
+-- 	lightM <- replicateM numLightKeyframes $
+-- 		LightKeyframe <$> getWord32LE <*> getV3 <*> getPos
+
+	-- After MMDv6.19 --
+	empty <- isEmpty
+	numSelfShadowKeyframes <- dicase (if empty then return V.empty else i32 >< V.length shadow) (i32 >< V.length shadow) 
+	shadowM <- array numSelfShadowKeyframes shadow
+-- 		numSelfShadowKeyframes <- getWord32Int
+-- 		replicateM numSelfShadowKeyframes $
+-- 			ShadowKeyframe <$> getWord32LE
+-- 				<*> (fromIntegral <$> getWord8) <*> getFloat
+	
+	-- Since MMDv7.40 --
+	empty <- isEmpty
+	ctrlM <- if empty then return []
+	else do
+		numCtrlKeyframes <- getWord32Int
+		replicateM numCtrlKeyframes $
+			ControlKeyframe <$> getWord32LE <*> ((== 1) <$> getWord8)
+				<*> (getWord32Int >>= \count ->
+					replicateM count
+					((,) <$> getFixedStr 20 <*> ((== 1) <$> getWord8)))
+
+	-- Sums up!
+	return $ VMD nameM boneM morphM cameraM lightM shadowM ctrlM
 
