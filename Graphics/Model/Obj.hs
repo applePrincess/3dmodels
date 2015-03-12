@@ -89,20 +89,30 @@ parseVn = char 'v' >> char 'n' >> float3
 parseF = char 'f' >> many indexes
 
 float = realToFrac <$> signed double
+{-# INLINE float #-}
+
 sp = char ' '
+{-# INLINE sp #-}
+
 float3 = V3
 	<$> (sp *> float)
 	<*> (sp *> float)
 	<*> (sp *> float)
+{-# INLINE float3 #-}
+
 float2 = V2
 	<$> (sp *> float)
 	<*> (sp *> float)
+{-# INLINE float2 #-}
 
 index = option 0 decimal
+{-# INLINE index #-}
+
 indexes = ObjFace
 	<$> (sp       *> index)
 	<*> (char '/' *> index)
 	<*> (char '/' *> index)
+{-# INLINE indexes #-}
 
 loadMtl :: FilePath -> IO ObjMaterial
 loadMtl path = parseMtl <$> B.readFile path
