@@ -240,55 +240,61 @@ data MMDSoftBody = MMDSoftBody
 -- | Vocaloid Motion Data
 data VMD = VMD
 	{ vmdModelName :: B.ByteString -- ^ CP932
-	, boneMotion :: [BoneKeyframe]
-	, morphMotion :: [MorphKeyframe]
-	, cameraMotion :: [CameraKeyframe]
-	, lightMotion :: [LightKeyframe]
-	, shadowMotion :: [ShadowKeyframe]
-	, controlMotion :: [ControlKeyframe]
+	, vmdBoneMotion :: [BoneKeyframe]
+	, vmdMorphMotion :: [MorphKeyframe]
+	, vmdCameraMotion :: [CameraKeyframe]
+	, vmdLightMotion :: [LightKeyframe]
+	, vmdShadowMotion :: [ShadowKeyframe]
+	, vmdCtrlMotion :: [ControlKeyframe]
 	} deriving Show
 
 data BoneKeyframe = BoneKeyframe
-	{ bkName :: B.ByteString
-	, bkFrame :: Word32
-	, bkPosition :: V3 Float -- ^ XYZ or (0,0,0)
-	, bkRotation :: V4 Float -- ^ Quaternion XYZW or (0,0,0,1)
-	, bkInterpolation :: [Int] -- XXX description
+	{ boneKeyName :: B.ByteString
+	, boneKeyFrame :: Word32
+	, boneKeyPosition :: V3 Float -- ^ XYZ or (0,0,0)
+	, boneKeyRotation :: V4 Float -- ^ Quaternion XYZW or (0,0,0,1)
+	, boneKeyInterpolation :: [Int] -- XXX description
 	} deriving Show
 
 data MorphKeyframe = MorphKeyframe
-	{ moName :: B.ByteString
-	, moFrame :: Word32
-	, moFace :: Float
+	{ morphKeyName :: B.ByteString
+	, morphKeyFrame :: Word32
+	, morphKeyFace :: Float
 	} deriving Show
 
 data CameraKeyframe = CameraKeyframe
-	{ ckFrame :: Word32
-	, ckDistance :: Float
-	, ckPosition :: V3 Float
-	, ckRotation :: V3 Float
-	, ckBezier :: [Int] -- ^ bezier int[24]
-	, ckViewingAngle :: Word32 -- ^ in degree
-	, ckPerspective :: Bool -- 0:Enable, 1:Disable
+	{ camKeyFrame :: Word32
+	, camKeyDistance :: Float
+	, camKeyPosition :: V3 Float
+	, camKeyRotation :: V3 Float
+	, camKeyBezier :: [Int] -- ^ bezier int[24]
+	, camKeyViewingAngle :: Word32 -- ^ in degree
+	, camKeyPerspective :: Bool -- 0:Enable, 1:Disable
 	} deriving Show
 
 data LightKeyframe = LightKeyframe
-	{ lkFrame :: Word32
-	, lkColor :: V3 Float
-	, lkPosition :: V3 Float
+	{ lightKeyFrame :: Word32
+	, lightKeyColor :: V3 Float
+	, lightKeyPosition :: V3 Float
 	} deriving Show
 
 data ShadowKeyframe = ShadowKeyframe
-	{ skFrame :: Word32
-	, skType :: Int
-	, skDistance :: Float -- ^ 0.1 - (dist * 0.00001)
+	{ shadowKeyFrame :: Word32
+	, shadowKeyType :: Int
+	, shadowKeyDistance :: Float -- ^ 0.1 - (dist * 0.00001)
 	} deriving Show
 
 data ControlKeyframe = ControlKeyframe
-	{ ctFrame :: Word32
-	, ctModelVisibility :: Bool
-	, ctIKCapability :: [(B.ByteString, Bool)]
+	{ ctrlKeyFrame :: Word32
+	, ctrlKeyModelVisibility :: Bool
+	, ctrlKeyIKCapability :: [(B.ByteString, Bool)]
 	} deriving Show
+
+-- instance Storable BoneKeyframe where
+-- instance Storable MorphKeyframe where
+-- instance Storable CameraKeyframe where
+-- instance Storable LightKeyframe where
+-- instance Storable ShadowKeyframe where
 
 
 -- * VPD
